@@ -1,10 +1,15 @@
 #!/usr/bin/python3
 
-import urllib3
+
+import requests
 import os
 import sys
 
 class PsScan:
+
+    adminPanelList = ['/admin', '/iadmin', '/adminpanel', '/admin123']
+    installList = ['/install', '/install123', '/install321', '/.install']
+
 
     def __init__(self, args) -> None:
         print('''
@@ -20,12 +25,37 @@ class PsScan:
                                                                                              
 
 ''')
-        if sys.argv[3]:
-            target = sys.argv[3]
+        if sys.argv[2]:
+            target = sys.argv[2]
+            if not self.isPresta(target):
+                print("This target don't use Prestashop")
             
+            self.checkInstallDir(target)
+            self.checkAdminDir(target)
+            pass
+    
+    def isPresta(self, target):
+        resp = requests.get(target)
+        
+        if "prestashop" in resp.text:
+            print("Website using Prestashop")
+            return True
+        
+        return False
+
+    def checkAdminDir(self, target):
+        
+        for path in self.adminPanelList:
+            resp = requests.get(target+path)
+            if resp.status_code == 200:
+                print(f'[-] Found Admin panel path: {target}{path}')
+
     def checkInstallDir(self, target):
-
-
+        
+        for path in self.installList:
+            resp = requests.get(target+path)
+            if resp.status_code == 200:
+                print(f'[-] Found Installation path: {target}{path}')
 
 if __name__ == "__main__":
     if not sys.argv[1]:
