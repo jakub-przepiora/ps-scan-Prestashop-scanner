@@ -1,13 +1,14 @@
 #!/usr/bin/python3
 
-from datetime import datetime
 import requests
 import os
 import sys
 import re
+from datetime import datetime
+import xml.etree.ElementTree as ET
 
 class PsScan:
-
+    global target
     adminPanelList = ['/admin', '/iadmin', '/adminpanel', '/admin123']
     installList = ['/install', '/install123', '/install321', '/.install']
     informationFromScan = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
@@ -30,46 +31,71 @@ Autor: TheMrEviil
 
 ''')
         if sys.argv[2]:
-            target = sys.argv[2]
-            if not self.isPresta(target):
+            self.target = sys.argv[2]
+            self.createFolderForScanInfo()
+            if not self.isPresta():
                 print("This target don't use Prestashop")
                 return None
-            self.getPrestaInfoFile(target)
-            self.checkInstallDir(target)
-            self.checkAdminDir(target)
             
+            self.getPrestaInfoFile()
+            self.checkInstallDir()
+            self.checkAdminDir()
+            self.getThemeName()
+            self.getModules()
             pass
 
-    def isPresta(self, target):
-        resp = requests.get(target)
+    def isPresta(self):
+        resp = requests.get(self.target)
         
         if "prestashop" in resp.text:
             print("[+] Website using Prestashop")
+            open(self.informationFromScan+'/home.txt', 'w', encoding='utf-8').write(resp.text)
             return True
         resp = requests.get(target+'/INSTALL.txt')
         if "prestashop" in resp.text:
             print("[+] Website using Prestashop")
+            open(self.informationFromScan+'/home.txt', 'w', encoding='utf-8').write(resp.text)
             return True
         return False
 
-    def checkAdminDir(self, target):
+    def checkAdminDir(self):
         
         for path in self.adminPanelList:
-            resp = requests.get(target+path)
+            resp = requests.get(self.target+path)
             if resp.status_code == 200:
-                print(f'[-] Found Admin panel path: {target}{path}')
+                print(f'[-] Found Admin panel path: {self.target}{path}')
 
-    def checkInstallDir(self, target):
+    def checkInstallDir(self):
         
         for path in self.installList:
-            resp = requests.get(target+path)
+            resp = requests.get(self.target+path)
             if resp.status_code == 200:
-                print(f'[-] Found Installation path: {target}{path}')
-    def getThemeName(self, target):
+                print(f'[-] Found Installation path: {self.target}{path}')
+
+    def getThemeName(self):
+        try:
+            with open(self.informationFromScan+'/home.txt', 'r', encoding='utf-8') as fileReaded:
+                content = fileReaded.read()
+                match = re.search(r'/themes/([^/]+)/', content)
+                if match:
+                    themeName = match.group(1)
+                    print(f"[+] Found theme: {themeName}")
+                    return themeName
+                else:
+                    print("[-] Theme not found")
+                    return None
+
+        except FileNotFoundError:
+            print(f"The file 'home.txt' was not found.")
+            return None
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            return None
+        
+
+    def getPrestaVersion(self):
         pass
 
-    def getPrestaVersion(self, target):
-        pass
     def getPrestaVersionFromFile(self, file):
 
         try:
@@ -93,12 +119,70 @@ Autor: TheMrEviil
             print(f"An error occurred: {e}")
             return None
 
-    def getPrestaInfoFile(self, target):
-        resp = requests.get(target+"/INSTALL.txt")
+    def getPrestaInfoFile(self):
+        resp = requests.get(self.target+"/INSTALL.txt")
         if resp.status_code == 200:
-            self.createFolderForScanInfo()
             open(self.informationFromScan+'/install.txt', 'w', encoding='utf-8').write(resp.text)
             self.getPrestaVersionFromFile(self.informationFromScan+'/install.txt')
+
+    def getModules(self):
+        print("\n============================ Modules =======================================\n")
+        try:
+            with open(self.informationFromScan+'/home.txt', 'r', encoding='utf-8') as fileReaded:
+                content = fileReaded.read()
+
+                # Use a regular expression to find module names in different patterns
+                matches = re.finditer(r'/module/([^/]+)/|/modules/([^/]+)/|/module/([^/]+)/|/modules/([^/]+)/|modules ([^/]+)|module ([^/]+)', content)
+
+                # List to store unique module names
+                unique_module_names = []
+
+                for match in matches:
+                    moduleName = match.group(1) or match.group(2) or match.group(3) or match.group(4) or match.group(5) or match.group(6)
+
+                    # Check if the module name is not in the list
+                    if moduleName and moduleName not in unique_module_names:
+                        unique_module_names.append(moduleName)
+                        print(f"[+] Module: {moduleName}")
+
+                # Check for the presence of the specific comment and extract "Block Search"
+                # comment_match = re.search(r'<!-- Block search module (\w+) -->', content)
+                # if comment_match:
+                #     comment_text = comment_match.group(1)
+                #     print(f"[+] Detected <!-- {comment_text} -->")
+
+        except FileNotFoundError:
+            print(f"The file '{self.informationFromScan}/home.txt' was not found.")
+        except Exception as e:
+            print(f"An error occurred: {e}")
+
+        self.getModulesVersion(unique_module_names)
+
+    def getModulesVersion(self, moduleList):
+        print("\n============================ Try get modules XML =======================================\n")
+        for module in moduleList:
+            resp = requests.get(self.target+"/modules/"+module+'/config.xml')
+            if resp.status_code == 200:
+                open(self.informationFromScan+'/'+module+'.xml', 'w', encoding='utf-8').write(resp.text)
+
+                print(f'[+] Found and save '+module+'.xml')
+                try:
+                    # Parse the XML file
+                    tree = ET.parse(self.informationFromScan+'/'+module+'.xml')
+                    root = tree.getroot()
+
+                    # Find the version element and extract its text
+                    version_element = root.find('.//version')
+                    
+                    if version_element is not None:
+                        version = version_element.text
+                        print(f"[!] The module version is: {version}")
+                except ET.ParseError as e:
+                    print(f"Error parsing XML: {e}")
+                except Exception as e:
+                    print(f"An error occurred: {e}")
+        pass
+        
 
     def createFolderForScanInfo(self):
         
