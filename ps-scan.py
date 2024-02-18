@@ -165,7 +165,7 @@ Autor: TheMrEviil
             if resp.status_code == 200:
                 open(self.informationFromScan+'/'+module+'.xml', 'w', encoding='utf-8').write(resp.text)
 
-                print(f'[+] Found and save '+module+'.xml')
+                print(f'\n[+] Found and save '+module+'.xml')
                 try:
                     # Parse the XML file
                     tree = ET.parse(self.informationFromScan+'/'+module+'.xml')
@@ -177,12 +177,37 @@ Autor: TheMrEviil
                     if version_element is not None:
                         version = version_element.text
                         print(f"[!] The module version is: {version}")
+                        self.findCve(module, version)
                 except ET.ParseError as e:
                     print(f"Error parsing XML: {e}")
                 except Exception as e:
                     print(f"An error occurred: {e}")
-        pass
         
+        
+    # FIND IN CVE MITRE
+
+    def findCve(self, module, version):
+        try:
+            response = requests.get('https://cve.mitre.org/cgi-bin/cvekey.cgi?keyword='+module+'%20'+version)
+
+            if response.status_code == 200:
+                cve_pattern = re.compile(r'CVE-\d+-\d+')
+                matches = cve_pattern.findall(response.text)
+
+                if matches:
+                    # Print the first 10 CVEs or all if there are fewer than 10
+                    print(f"[!] Found CVE(s) in the response: {', '.join(matches[:10])}")
+                else:
+                    print("No CVEs found in the response.")
+            else:
+                print(f"Error: HTTP status code {response.status_code}")
+
+        except requests.RequestException as e:
+            print(f"An error occurred during the request: {e}")
+        except Exception as e:
+            print(f"An unexpected error occurred: {e}")
+        
+        print(f'[+] More CVE https://cve.mitre.org/cgi-bin/cvekey.cgi?keyword={module}%20{version}')
 
     def createFolderForScanInfo(self):
         
