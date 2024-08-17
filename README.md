@@ -9,8 +9,17 @@ It's essential to note that this is an initial version, and future iterations ma
 
 # !!! You using this tool on your own responsibility !!!
 
-# COMING SOON
-### Version 1.0.1
 
-- scripts will check default modules prestashop 1.4-8.1.4
-- scanning robots.txt
+
+
+# Change log 
+
+### Version [1.0.3] - 2024-08-17
+#### Added
+- scripts will check default modules Prestashop
+- Add default user-agent
+
+#### Fixed
+- add information when program start without variables
+- separate method to parse XML config file
+

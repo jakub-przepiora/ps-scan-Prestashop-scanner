@@ -7,10 +7,14 @@ import re
 from datetime import datetime
 import xml.etree.ElementTree as ET
 
+
 class PsScan:
     global target
     adminPanelList = ['/admin', '/iadmin', '/adminpanel', '/admin123']
     installList = ['/install', '/install123', '/install321', '/.install']
+    defaultModules = ["blindinvoices", "blockreassurance", "blockwishlist", "contactform", "dashactivity", "dashgoals", "dashproducts", "dashtrends", "followup", "graphnvd3", "gridhtml", "gsitemap", "pagesnotfound", "productcomments", "ps_banner", "ps_bestsellers", "ps_brandlist", "ps_cashondelivery", "ps_categoryproducts", "ps_categorytree", "ps_checkpayment", "ps_contactinfo", "ps_crossselling", "ps_currencyselector", "ps_customeraccountlinks", "ps_customersignin", "ps_customtext", "ps_dataprivacy", "ps_distributionapiclient", "ps_emailalerts", "ps_emailsubscription", "ps_facetedsearch", "ps_faviconnotificationbo", "ps_featuredproducts", "psgdpr", "ps_googleanalytics", "ps_imageslider", "ps_languageselector", "ps_linklist", "ps_mainmenu", "ps_newproducts", "ps_reminder", "ps_searchbar", "ps_sharebuttons", "ps_shoppingcart", "ps_socialfollow", "ps_specials", "ps_supplierlist", "ps_themecusto", "ps_viewedproduct", "ps_wirepayment", "referralprogram", "statsbestcategories", "statsbestcustomers", "statsbestmanufacturers", "statsbestproducts", "statsbestsuppliers", "statsbestvouchers", "statscarrier", "statscatalog", "statscheckup", "statsdata", "statsforecast", "statsnewsletter", "statspersonalinfos", "statsproduct", "statsregistrations", "statssales", "statssearch", "statsstock"]
+    headers = {'User-Agent': 'PsScan'} # Default user-agent
+
     informationFromScan = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
 
 
@@ -27,7 +31,9 @@ class PsScan:
 ░▒▓█▓▒░             ░▒▓█▓▒░                   ░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░ 
 ░▒▓█▓▒░      ░▒▓███████▓▒░             ░▒▓███████▓▒░ ░▒▓██████▓▒░░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░░▒▓█▓▒░ 
                                                                                              
-Autor: TheMrEviil                                                                                
+Autor: Jakub "TheMrEviil" Przepióra  
+Contact: jakub.przepioraa@gmail.com
+Version: 1.0.3                                                                              
 
 ''')
         if sys.argv[2]:
@@ -36,42 +42,44 @@ Autor: TheMrEviil
             if not self.isPresta():
                 print("This target don't use Prestashop")
                 return None
-            
             self.getPrestaInfoFile()
             self.checkInstallDir()
             self.checkAdminDir()
             self.getThemeName()
+            self.getModulesDefault()
             self.getModules()
             pass
-
+   
+    # Check version prestashop 
     def isPresta(self):
         resp = requests.get(self.target)
-        
+
         if "prestashop" in resp.text:
             print("[+] Website using Prestashop")
             open(self.informationFromScan+'/home.txt', 'w', encoding='utf-8').write(resp.text)
             return True
-        resp = requests.get(target+'/INSTALL.txt')
+        resp = requests.get(target+'/INSTALL.txt',  headers=self.headers)
         if "prestashop" in resp.text:
             print("[+] Website using Prestashop")
             open(self.informationFromScan+'/home.txt', 'w', encoding='utf-8').write(resp.text)
             return True
         return False
-
+    # Try bruteforce admin panel dir 
     def checkAdminDir(self):
         
         for path in self.adminPanelList:
-            resp = requests.get(self.target+path)
+            resp = requests.get(self.target+path,  headers=self.headers)
             if resp.status_code == 200:
                 print(f'[-] Found Admin panel path: {self.target}{path}')
-
+    # Try find install dir
     def checkInstallDir(self):
         
         for path in self.installList:
-            resp = requests.get(self.target+path)
+            resp = requests.get(self.target+path,  headers=self.headers)
             if resp.status_code == 200:
                 print(f'[-] Found Installation path: {self.target}{path}')
 
+    # Get theme name
     def getThemeName(self):
         try:
             with open(self.informationFromScan+'/home.txt', 'r', encoding='utf-8') as fileReaded:
@@ -96,6 +104,7 @@ Autor: TheMrEviil
     def getPrestaVersion(self):
         pass
 
+    # Try get Prestashop verstion from INSTALL file 
     def getPrestaVersionFromFile(self, file):
 
         try:
@@ -120,7 +129,7 @@ Autor: TheMrEviil
             return None
 
     def getPrestaInfoFile(self):
-        resp = requests.get(self.target+"/INSTALL.txt")
+        resp = requests.get(self.target+"/INSTALL.txt",  headers=self.headers)
         if resp.status_code == 200:
             open(self.informationFromScan+'/install.txt', 'w', encoding='utf-8').write(resp.text)
             self.getPrestaVersionFromFile(self.informationFromScan+'/install.txt')
@@ -158,37 +167,65 @@ Autor: TheMrEviil
 
         self.getModulesVersion(unique_module_names)
 
+    # Check default modules
+    def getModulesDefault(self):
+        print("\n============================ Try get default modules XML =======================================\n")
+        for module in self.defaultModules:
+            responseNormal = requests.get(self.target+"/modules/"+module+'/config.xml',  headers=self.headers)
+            responseRewrite = requests.get(self.target+"/module/"+module+'/config.xml',  headers=self.headers)
+            response = ''
+            if responseNormal.status_code == 200:
+                response = responseNormal
+            if responseRewrite.status_code == 200:
+                response = responseRewrite
+
+            if not response: 
+                continue
+            
+            open(self.informationFromScan+'/'+module+'.xml', 'w', encoding='utf-8').write(response.text)
+            print(f'\n[+] Found and save config file: '+module+'/config.xml')
+            moduleVersion = self.parseModuleConfigXML(module)
+            self.findCve(module, moduleVersion)
+
     def getModulesVersion(self, moduleList):
         print("\n============================ Try get modules XML =======================================\n")
         for module in moduleList:
-            resp = requests.get(self.target+"/modules/"+module+'/config.xml')
+            resp = requests.get(self.target+"/modules/"+module+'/config.xml',  headers=self.headers)
             if resp.status_code == 200:
                 open(self.informationFromScan+'/'+module+'.xml', 'w', encoding='utf-8').write(resp.text)
 
-                print(f'\n[+] Found and save '+module+'.xml')
-                try:
-                    # Parse the XML file
-                    tree = ET.parse(self.informationFromScan+'/'+module+'.xml')
-                    root = tree.getroot()
+                print(f'\n[+] Found and save config file: '+module+'.xml')
+                moduleVersion = self.parseModuleConfigXML(module)
+                self.findCve(module, moduleVersion)
+                
+    
+    def parseModuleConfigXML(self, module):
+        try:
+            # Parse the XML file
+            tree = ET.parse(self.informationFromScan+'/'+module+'.xml')
+            root = tree.getroot()
 
-                    # Find the version element and extract its text
-                    version_element = root.find('.//version')
-                    
-                    if version_element is not None:
-                        version = version_element.text
-                        print(f"[!] The module version is: {version}")
-                        self.findCve(module, version)
-                except ET.ParseError as e:
-                    print(f"Error parsing XML: {e}")
-                except Exception as e:
-                    print(f"An error occurred: {e}")
+            # Find the version element and extract its text
+            version_element = root.find('.//version')
+            
+            if version_element is not None:
+                version = version_element.text
+                print(f"[!] The module version is: {version}")
+                return version
+                # self.findCve(module, version)
+        except ET.ParseError as e:
+            print(f"Error parsing XML: {e}")
+            return None
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            return None
         
-        
+
     # FIND IN CVE MITRE
 
     def findCve(self, module, version):
         try:
-            response = requests.get('https://cve.mitre.org/cgi-bin/cvekey.cgi?keyword='+module+'%20'+version)
+            response = requests.get('https://cve.mitre.org/cgi-bin/cvekey.cgi?keyword='+module+'%20'+version,  headers=self.headers)
 
             if response.status_code == 200:
                 cve_pattern = re.compile(r'CVE-\d+-\d+')
@@ -217,9 +254,14 @@ Autor: TheMrEviil
             os.mkdir(fullPath)
 
 if __name__ == "__main__":
+    
+    if len(sys.argv) == 1:
+        print("\nYou can check flags using: ps-scan.py help\n")
+        sys.exit()
+    
     if not sys.argv[1]:
-        print("You can check flags using: ps-scan.py help")
-        pass
+        print("\nYou can check flags using: ps-scan.py help\n")
+        sys.exit()
     
     if sys.argv[1] == 'help':
         
@@ -234,3 +276,6 @@ if __name__ == "__main__":
             PsScan(sys.argv)
         else:
             pass
+    else:
+        print("\nExample using: python3 ps-scan.py -h https://example.com")
+        pass
