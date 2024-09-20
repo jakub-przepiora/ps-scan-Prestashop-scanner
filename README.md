@@ -23,3 +23,8 @@ It's essential to note that this is an initial version, and future iterations ma
 - add information when program start without variables
 - separate method to parse XML config file
 
+
+# Coming soon 
+
+- check .git directory in modules
+- check Prestashop API
