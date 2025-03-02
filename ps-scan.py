@@ -253,6 +253,13 @@ Version: 1.0.3
         if not os.path.exists(fullPath):
             os.mkdir(fullPath)
 
+    def scanPopularScripts(self):
+        targetsScripts = ['/unzipper.php','/adminer.php', '/phpmyadmin.php', '/monstra-ftp/index.php', '/info.php']
+        for target in targetsScripts:
+            resp = requests.get(self.target+targetsScripts,  headers=self.headers)
+            if resp.status_code == 200:
+                print(f'[+] Found popular script: {self.target}{target}')
+
 if __name__ == "__main__":
     
     if len(sys.argv) == 1:
