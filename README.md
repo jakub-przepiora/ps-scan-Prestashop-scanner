@@ -13,6 +13,9 @@ It's essential to note that this is an initial version, and future iterations ma
 
 
 # Change log 
+### Version [1.0.4] - 2024-08-17
+#### Added
+- Add -vw this parametr add searching CVEs without modules version
 
 ### Version [1.0.3] - 2024-08-17
 #### Added
