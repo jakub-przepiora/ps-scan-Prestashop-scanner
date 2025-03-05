@@ -246,7 +246,7 @@ Version: 1.0.4
 
             if self.envWithoutVersion == 1:
                     print("[+} Try find CVEs without version")
-                    response = requests.get('https://cve.mitre.org/cgi-bin/cvekey.cgi?keyword='+module+'%20'+version,  headers=self.headers)
+                    response = requests.get('https://cve.mitre.org/cgi-bin/cvekey.cgi?keyword='+module,  headers=self.headers)
 
                     if response.status_code == 200:
                         cve_pattern = re.compile(r'CVE-\d+-\d+')
