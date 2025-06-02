@@ -1,4 +1,3 @@
-
 # PS SCAN
 
 This tool serves as an initial version scanner specifically designed for PrestaShop, a popular e-commerce platform. The primary purpose of the scanner is to analyze PrestaShop instances for various aspects, such as module information, version details, and potential security vulnerabilities. By leveraging techniques like web scraping and parsing, the scanner extracts relevant data from PrestaShop installations, providing valuable insights for developers, administrators, or security professionals.
@@ -13,6 +12,19 @@ It's essential to note that this is an initial version, and future iterations ma
 
 
 # Change log 
+### Version [1.1.0] - 2024-03-21
+#### Added
+- Added proxy support with -p/--proxy parameter
+- Added sensitive files checking (.env, .git/config, robots.txt, etc.)
+- Added PrestaShop API endpoints scanning
+- Added better error handling and program termination
+- Added improved command line argument handling
+
+#### Fixed
+- Fixed case sensitivity in user input
+- Fixed argument parsing for multiple optional parameters
+- Fixed program exit handling
+
 ### Version [1.0.4] - 2024-08-17
 #### Added
 - Add -vw this parametr add searching CVEs without modules version

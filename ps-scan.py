@@ -11,6 +11,7 @@ import xml.etree.ElementTree as ET
 class PsScan:
     global target
     global envWithoutVersion
+    global proxy
     adminPanelList = ['/admin', '/iadmin', '/adminpanel', '/admin123']
     installList = ['/install', '/install123', '/install321', '/.install']
     defaultModules = ["blindinvoices", "blockreassurance", "blockwishlist", "contactform", "dashactivity", "dashgoals", "dashproducts", "dashtrends", "followup", "graphnvd3", "gridhtml", "gsitemap", "pagesnotfound", "productcomments", "ps_banner", "ps_bestsellers", "ps_brandlist", "ps_cashondelivery", "ps_categoryproducts", "ps_categorytree", "ps_checkpayment", "ps_contactinfo", "ps_crossselling", "ps_currencyselector", "ps_customeraccountlinks", "ps_customersignin", "ps_customtext", "ps_dataprivacy", "ps_distributionapiclient", "ps_emailalerts", "ps_emailsubscription", "ps_facetedsearch", "ps_faviconnotificationbo", "ps_featuredproducts", "psgdpr", "ps_googleanalytics", "ps_imageslider", "ps_languageselector", "ps_linklist", "ps_mainmenu", "ps_newproducts", "ps_reminder", "ps_searchbar", "ps_sharebuttons", "ps_shoppingcart", "ps_socialfollow", "ps_specials", "ps_supplierlist", "ps_themecusto", "ps_viewedproduct", "ps_wirepayment", "referralprogram", "statsbestcategories", "statsbestcustomers", "statsbestmanufacturers", "statsbestproducts", "statsbestsuppliers", "statsbestvouchers", "statscarrier", "statscatalog", "statscheckup", "statsdata", "statsforecast", "statsnewsletter", "statspersonalinfos", "statsproduct", "statsregistrations", "statssales", "statssearch", "statsstock"]
@@ -34,18 +35,27 @@ class PsScan:
 
 Autor: Jakub "TheMrEviil" Przepióra
 Contact: jakub.przepioraa@gmail.com
-Version: 1.0.4
+Version: 1.1.0
 
 ''')
         if sys.argv[2]:
             self.target = sys.argv[2]
-            if len(sys.argv) > 3 and (sys.argv[3] == "-wv" or sys.argv[3] == "--without-version"):
-                print("[INFO] CVE will search without version")
-                self.envWithoutVersion = 1
+            self.proxy = None
+            if len(sys.argv) > 3:
+                for i in range(3, len(sys.argv)):
+                    if sys.argv[i] == "-wv" or sys.argv[i] == "--without-version":
+                        print("[INFO] CVE will search without version")
+                        self.envWithoutVersion = 1
+                    elif sys.argv[i] == "-p" or sys.argv[i] == "--proxy":
+                        if i + 1 < len(sys.argv):
+                            self.proxy = sys.argv[i + 1]
+                            print(f"[INFO] Using proxy: {self.proxy}")
             self.createFolderForScanInfo()
             if not self.isPresta():
                 print("This target don't use Prestashop")
                 return None
+            self.checkSensitiveFiles()
+            self.checkPrestaAPI()
             self.getPrestaInfoFile()
             self.checkInstallDir()
             self.checkAdminDir()
@@ -54,34 +64,165 @@ Version: 1.0.4
             self.getModules()
             pass
 
+    def make_request(self, url, headers=None):
+        if headers is None:
+            headers = self.headers
+        proxies = None
+        if self.proxy:
+            proxies = {
+                'http': self.proxy,
+                'https': self.proxy
+            }
+        return requests.get(url, headers=headers, proxies=proxies)
+
     # Check version prestashop
     def isPresta(self):
-        resp = requests.get(self.target)
+        resp = self.make_request(self.target)
 
         if "prestashop" in resp.text:
             print("[+] Website using Prestashop")
             open(self.informationFromScan+'/home.txt', 'w', encoding='utf-8').write(resp.text)
             return True
-        resp = requests.get(target+'/INSTALL.txt',  headers=self.headers)
+        resp = self.make_request(self.target+'/INSTALL.txt')
         if "prestashop" in resp.text:
             print("[+] Website using Prestashop")
             open(self.informationFromScan+'/home.txt', 'w', encoding='utf-8').write(resp.text)
             return True
         return False
+
     # Try bruteforce admin panel dir
     def checkAdminDir(self):
-
         for path in self.adminPanelList:
-            resp = requests.get(self.target+path,  headers=self.headers)
+            resp = self.make_request(self.target+path)
             if resp.status_code == 200:
                 print(f'[-] Found Admin panel path: {self.target}{path}')
+
     # Try find install dir
     def checkInstallDir(self):
-
         for path in self.installList:
-            resp = requests.get(self.target+path,  headers=self.headers)
+            resp = self.make_request(self.target+path)
             if resp.status_code == 200:
                 print(f'[-] Found Installation path: {self.target}{path}')
+
+    def checkSensitiveFiles(self):
+        print("\n============================ Checking Sensitive Files =======================================\n")
+        sensitive_files = [
+            '/.env',
+            '/.git/config',
+            '/robots.txt',
+            '/config/settings.inc.php',
+            '/config/database.php',
+            '/app/config/parameters.yml',
+            '/app/config/parameters.php'
+        ]
+
+        for file_path in sensitive_files:
+            try:
+                resp = self.make_request(self.target + file_path)
+                if resp.status_code == 200:
+                    print(f'[!] Found sensitive file: {file_path}')
+                    # Save the content to a file
+                    safe_filename = file_path.replace('/', '_').replace('.', '_')
+                    with open(f'{self.informationFromScan}/{safe_filename}', 'w', encoding='utf-8') as f:
+                        f.write(resp.text)
+                    print(f'[+] Content saved to: {self.informationFromScan}/{safe_filename}')
+            except Exception as e:
+                print(f'[-] Error checking {file_path}: {str(e)}')
+
+    def checkPrestaAPI(self):
+        print("\n============================ Checking PrestaShop API =======================================\n")
+        
+        # List of common PrestaShop API endpoints
+        api_endpoints = [
+            '/api',
+            '/api/products',
+            '/api/categories',
+            '/api/customers',
+            '/api/orders',
+            '/api/addresses',
+            '/api/carriers',
+            '/api/cart_rules',
+            '/api/combinations',
+            '/api/configurations',
+            '/api/currencies',
+            '/api/customizations',
+            '/api/deliveries',
+            '/api/employees',
+            '/api/groups',
+            '/api/guests',
+            '/api/images',
+            '/api/languages',
+            '/api/manufacturers',
+            '/api/order_carriers',
+            '/api/order_details',
+            '/api/order_histories',
+            '/api/order_invoices',
+            '/api/order_payments',
+            '/api/order_states',
+            '/api/prices',
+            '/api/product_customization_fields',
+            '/api/product_features',
+            '/api/product_feature_values',
+            '/api/product_options',
+            '/api/product_suppliers',
+            '/api/shop_groups',
+            '/api/shops',
+            '/api/specific_prices',
+            '/api/states',
+            '/api/stocks',
+            '/api/stores',
+            '/api/suppliers',
+            '/api/supply_order_details',
+            '/api/supply_order_histories',
+            '/api/supply_order_receipt_histories',
+            '/api/supply_order_states',
+            '/api/supply_orders',
+            '/api/tags',
+            '/api/tax_rule_groups',
+            '/api/tax_rules',
+            '/api/taxes',
+            '/api/translated_configurations',
+            '/api/warehouse_product_locations',
+            '/api/warehouses',
+            '/api/weight_ranges',
+            '/api/zones'
+        ]
+
+        found_endpoints = []
+        
+        for endpoint in api_endpoints:
+            try:
+                urls = [self.target + endpoint, self.target + endpoint + '/']
+                
+                for url in urls:
+                    resp = self.make_request(url)
+                    
+                    if resp.status_code in [200, 401, 403]:  # 401/403 might indicate API exists but needs auth
+                        content_type = resp.headers.get('content-type', '').lower()
+                        if 'application/json' in content_type or 'application/xml' in content_type:
+                            found_endpoints.append(endpoint)
+                            print(f'[+] Found API endpoint: {endpoint}')
+                            safe_filename = endpoint.replace('/', '_').replace('.', '_')
+                            with open(f'{self.informationFromScan}/api_{safe_filename}', 'w', encoding='utf-8') as f:
+                                f.write(resp.text)
+                            break
+                    
+                    if 'api' in resp.text.lower() or 'swagger' in resp.text.lower() or 'openapi' in resp.text.lower():
+                        found_endpoints.append(endpoint)
+                        print(f'[+] Found API documentation at: {endpoint}')
+                        break
+                        
+            except Exception as e:
+                print(f'[-] Error checking {endpoint}: {str(e)}')
+                continue
+
+        if found_endpoints:
+            print(f'\n[!] Found {len(found_endpoints)} API endpoints')
+            print('[+] API endpoints found:')
+            for endpoint in found_endpoints:
+                print(f'    - {endpoint}')
+        else:
+            print('[-] No API endpoints found')
 
     # Get theme name
     def getThemeName(self):
@@ -133,7 +274,7 @@ Version: 1.0.4
             return None
 
     def getPrestaInfoFile(self):
-        resp = requests.get(self.target+"/INSTALL.txt",  headers=self.headers)
+        resp = self.make_request(self.target+"/INSTALL.txt")
         if resp.status_code == 200:
             open(self.informationFromScan+'/install.txt', 'w', encoding='utf-8').write(resp.text)
             self.getPrestaVersionFromFile(self.informationFromScan+'/install.txt')
@@ -175,8 +316,8 @@ Version: 1.0.4
     def getModulesDefault(self):
         print("\n============================ Try get default modules XML =======================================\n")
         for module in self.defaultModules:
-            responseNormal = requests.get(self.target+"/modules/"+module+'/config.xml',  headers=self.headers)
-            responseRewrite = requests.get(self.target+"/module/"+module+'/config.xml',  headers=self.headers)
+            responseNormal = self.make_request(self.target+"/modules/"+module+'/config.xml')
+            responseRewrite = self.make_request(self.target+"/module/"+module+'/config.xml')
             response = ''
             if responseNormal.status_code == 200:
                 response = responseNormal
@@ -194,7 +335,7 @@ Version: 1.0.4
     def getModulesVersion(self, moduleList):
         print("\n============================ Try get modules XML =======================================\n")
         for module in moduleList:
-            resp = requests.get(self.target+"/modules/"+module+'/config.xml',  headers=self.headers)
+            resp = self.make_request(self.target+"/modules/"+module+'/config.xml')
             if resp.status_code == 200:
                 open(self.informationFromScan+'/'+module+'.xml', 'w', encoding='utf-8').write(resp.text)
 
@@ -229,7 +370,7 @@ Version: 1.0.4
 
     def findCve(self, module, version):
         try:
-            response = requests.get('https://cve.mitre.org/cgi-bin/cvekey.cgi?keyword='+module+'%20'+version,  headers=self.headers)
+            response = self.make_request('https://cve.mitre.org/cgi-bin/cvekey.cgi?keyword='+module+'%20'+version)
 
             if response.status_code == 200:
                 cve_pattern = re.compile(r'CVE-\d+-\d+')
@@ -246,7 +387,7 @@ Version: 1.0.4
 
             if self.envWithoutVersion == 1:
                     print("[+} Try find CVEs without version")
-                    response = requests.get('https://cve.mitre.org/cgi-bin/cvekey.cgi?keyword='+module,  headers=self.headers)
+                    response = self.make_request('https://cve.mitre.org/cgi-bin/cvekey.cgi?keyword='+module)
 
                     if response.status_code == 200:
                         cve_pattern = re.compile(r'CVE-\d+-\d+')
@@ -270,34 +411,36 @@ Version: 1.0.4
     def scanPopularScripts(self):
         targetsScripts = ['/unzipper.php','/adminer.php', '/phpmyadmin.php', '/monstra-ftp/index.php', '/info.php']
         for target in targetsScripts:
-            resp = requests.get(self.target+targetsScripts,  headers=self.headers)
+            resp = self.make_request(self.target+targetsScripts)
             if resp.status_code == 200:
                 print(f'[+] Found popular script: {self.target}{target}')
 
 if __name__ == "__main__":
+    # if they only passed "-h" (your host‐flag) but no URL, treat it like "no args"
+    if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--host"):
+        print("\nYou can check flags using: ps-scan.py help\n")
+        sys.exit()
 
     if len(sys.argv) == 1:
         print("\nYou can check flags using: ps-scan.py help\n")
         sys.exit()
 
-    if not sys.argv[1]:
-        print("\nYou can check flags using: ps-scan.py help\n")
-        sys.exit()
-
+    # now it's safe to assume sys.argv[1] exists and (if it's -h) that sys.argv[2] also exists
     if sys.argv[1] == 'help':
-
         helpFlags = '''
     -h      --host              Host to scan (https://example.com)
     -wv     --without-version   searching CVEs without number version 
+    -p      --proxy             Proxy to use (http://proxy:port)
         '''
         print(helpFlags)
+        sys.exit()
 
     if '-h' in sys.argv:
-        ans =input("\nDo you have permission to scan this website? [y/n] ")
-        if ans == 'y':
+        ans = input("\nDo you have permission to scan this website? [y/n] ")
+        if ans.lower() == 'y':
             PsScan(sys.argv)
         else:
-            pass
+            sys.exit()
     else:
-        print("\nExample using: python3 ps-scan.py -h https://example.com")
-        pass
+        print("\nExample using: python3 ps-scan.py -h https://example.com [-p http://proxy:port]")
+        sys.exit()
